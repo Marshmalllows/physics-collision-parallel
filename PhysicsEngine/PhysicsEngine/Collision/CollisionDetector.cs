@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Threading.Tasks;
 using PhysicsEngine.Core;
 
 namespace PhysicsEngine.Collision;
@@ -49,7 +52,7 @@ public static class CollisionDetector
             var penetration = ss.Radius - dist;
             var worldNormal = Vector3.Transform(localNormal, box.Rotation);
             var contactPos = sphere.Position - worldNormal * (ss.Radius - penetration * 0.5f);
-            return new ContactPoint(contactPos, worldNormal, penetration);
+            return new ContactPoint(contactPos, -worldNormal, penetration);
         }
 
         var absLocal = Vector3.Abs(local);
@@ -91,7 +94,7 @@ public static class CollisionDetector
         var penetration2 = ss.Radius + faceDist;
         var worldNormal2 = Vector3.Transform(localNormal2, box.Rotation);
         var contactPos2 = sphere.Position - worldNormal2 * (ss.Radius - penetration2 * 0.5f);
-        return new ContactPoint(contactPos2, worldNormal2, penetration2);
+        return new ContactPoint(contactPos2, -worldNormal2, penetration2);
     }
 
     public static ContactPoint? BoxBox(RigidBody a, RigidBody b)
@@ -189,8 +192,30 @@ public static class CollisionDetector
             }
         }
 
-        var contactPos = a.Position + bestAxis * (minPenetration * 0.5f);
+        var contactPos = FindBoxBoxContactPoint(a.Position, axesA, extA, b.Position, axesB, extB, bestAxis);
         return new ContactPoint(contactPos, bestAxis, minPenetration);
+    }
+
+    private static Vector3 FindBoxBoxContactPoint(
+        Vector3 posA, Span<Vector3> axesA, float[] extA,
+        Vector3 posB, Span<Vector3> axesB, float[] extB,
+        Vector3 normal)
+    {
+        var supportA = posA;
+        for (var i = 0; i < 3; i++)
+        {
+            var sign = Vector3.Dot(axesA[i], normal) > 0 ? 1f : -1f;
+            supportA += sign * extA[i] * axesA[i];
+        }
+
+        var supportB = posB;
+        for (var i = 0; i < 3; i++)
+        {
+            var sign = Vector3.Dot(axesB[i], -normal) > 0 ? 1f : -1f;
+            supportB += sign * extB[i] * axesB[i];
+        }
+
+        return (supportA + supportB) * 0.5f;
     }
 
     public static ContactPoint? Detect(RigidBody a, RigidBody b)
