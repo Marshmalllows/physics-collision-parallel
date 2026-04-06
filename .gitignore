@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dll
+
+# Rider
+.idea/
+
+# Unity
+UnityVisualization/Library/
+UnityVisualization/Temp/
+UnityVisualization/Logs/
+UnityVisualization/UserSettings/
+UnityVisualization/MemoryCaptures/
+UnityVisualization/Builds/
+*.cginc
+*.pidb
+*.unityproj
