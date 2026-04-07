@@ -7,9 +7,12 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="System.Text.Json" Version="10.0.5" />
+    </ItemGroup>
+
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-        <Copy SourceFiles="$(TargetPath)"
-              DestinationFolder="..\..\UnityVisualization\Assets\Plugins\" />
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="..\..\UnityVisualization\Assets\Plugins\" />
     </Target>
     
 </Project>
