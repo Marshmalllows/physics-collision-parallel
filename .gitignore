@@ -19,3 +19,6 @@ UnityVisualization/Builds/
 *.cginc
 *.pidb
 *.unityproj
+
+# Benchmark results
+PhysicsBenchmark/results/

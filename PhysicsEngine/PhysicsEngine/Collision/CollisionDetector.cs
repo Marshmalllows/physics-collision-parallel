@@ -2,8 +2,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using PhysicsEngine.Core;
+using PhysicsEngine.Dynamics;
 
 namespace PhysicsEngine.Collision;
 
@@ -231,33 +233,100 @@ public static class CollisionDetector
         };
     }
 
-    public static List<CollisionPair> DetectAll(List<RigidBody> bodies, bool parallel, int threadCount)
+    public static List<CollisionPair> DetectAll(List<RigidBody> bodies, ParallelStrategy strategy, int threadCount)
     {
-        if (parallel)
+        switch (strategy)
         {
-            var bag = new ConcurrentBag<CollisionPair>();
-            var options = new ParallelOptions { MaxDegreeOfParallelism = threadCount };
-            Parallel.For(0, bodies.Count, options, i =>
+            case ParallelStrategy.ParallelFor:
             {
+                var bag = new ConcurrentBag<(int i, int j, CollisionPair pair)>();
+                var options = new ParallelOptions { MaxDegreeOfParallelism = threadCount };
+                Parallel.For(0, bodies.Count, options, i =>
+                {
+                    for (var j = i + 1; j < bodies.Count; j++)
+                    {
+                        var contact = Detect(bodies[i], bodies[j]);
+                        if (contact.HasValue)
+                            bag.Add((i, j, new CollisionPair(bodies[i], bodies[j], contact.Value)));
+                    }
+                });
+                return SortPairs(bag);
+            }
+            case ParallelStrategy.TaskBased:
+            {
+                var bag = new ConcurrentBag<(int i, int j, CollisionPair pair)>();
+                var chunkSize = Math.Max(1, (bodies.Count + threadCount - 1) / threadCount);
+                var tasks = new Task[Math.Min(threadCount, (bodies.Count + chunkSize - 1) / chunkSize)];
+                for (var t = 0; t < tasks.Length; t++)
+                {
+                    var start = t * chunkSize;
+                    var end = Math.Min(start + chunkSize, bodies.Count);
+                    tasks[t] = Task.Run(() =>
+                    {
+                        for (var i = start; i < end; i++)
+                        for (var j = i + 1; j < bodies.Count; j++)
+                        {
+                            var contact = Detect(bodies[i], bodies[j]);
+                            if (contact.HasValue)
+                                bag.Add((i, j, new CollisionPair(bodies[i], bodies[j], contact.Value)));
+                        }
+                    });
+                }
+                Task.WaitAll(tasks);
+                return SortPairs(bag);
+            }
+            case ParallelStrategy.ThreadPool:
+            {
+                var bag = new ConcurrentBag<(int i, int j, CollisionPair pair)>();
+                var chunkSize = Math.Max(1, (bodies.Count + threadCount - 1) / threadCount);
+                var chunkCount = Math.Min(threadCount, (bodies.Count + chunkSize - 1) / chunkSize);
+                using var done = new CountdownEvent(chunkCount);
+                for (var t = 0; t < chunkCount; t++)
+                {
+                    var start = t * chunkSize;
+                    var end = Math.Min(start + chunkSize, bodies.Count);
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        for (var i = start; i < end; i++)
+                        for (var j = i + 1; j < bodies.Count; j++)
+                        {
+                            var contact = Detect(bodies[i], bodies[j]);
+                            if (contact.HasValue)
+                                bag.Add((i, j, new CollisionPair(bodies[i], bodies[j], contact.Value)));
+                        }
+                        done.Signal();
+                    });
+                }
+                done.Wait();
+                return SortPairs(bag);
+            }
+            default:
+            {
+                var pairs = new List<CollisionPair>();
+                for (var i = 0; i < bodies.Count; i++)
                 for (var j = i + 1; j < bodies.Count; j++)
                 {
                     var contact = Detect(bodies[i], bodies[j]);
                     if (contact.HasValue)
-                        bag.Add(new CollisionPair(bodies[i], bodies[j], contact.Value));
+                        pairs.Add(new CollisionPair(bodies[i], bodies[j], contact.Value));
                 }
-            });
-            return [.. bag];
+                return pairs;
+            }
         }
+    }
 
-        var pairs = new List<CollisionPair>();
-        for (var i = 0; i < bodies.Count; i++)
-        for (var j = i + 1; j < bodies.Count; j++)
+    private static List<CollisionPair> SortPairs(ConcurrentBag<(int i, int j, CollisionPair pair)> bag)
+    {
+        var indexed = bag.ToArray();
+        Array.Sort(indexed, (a, b) =>
         {
-            var contact = Detect(bodies[i], bodies[j]);
-            if (contact.HasValue)
-                pairs.Add(new CollisionPair(bodies[i], bodies[j], contact.Value));
-        }
-        return pairs;
+            var cmp = a.i.CompareTo(b.i);
+            return cmp != 0 ? cmp : a.j.CompareTo(b.j);
+        });
+        var result = new List<CollisionPair>(indexed.Length);
+        foreach (var entry in indexed)
+            result.Add(entry.pair);
+        return result;
     }
 
     private static ContactPoint? Flip(ContactPoint? cp)

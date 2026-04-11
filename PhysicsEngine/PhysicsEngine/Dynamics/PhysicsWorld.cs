@@ -22,13 +22,13 @@ public class PhysicsWorld
         Bodies.Add(body);
     }
 
-    public void Simulate(float dt, bool parallel = false, int threadCount = 1)
+    public void Simulate(float dt, ParallelStrategy strategy = ParallelStrategy.Sequential, int threadCount = 1)
     {
-        Integrator.IntegrateAll(Bodies, Gravity, dt, LinearDamping, AngularDamping, parallel, threadCount);
+        Integrator.IntegrateAll(Bodies, Gravity, dt, LinearDamping, AngularDamping, strategy, threadCount);
 
         for (var i = 0; i < SolverIterations; i++)
         {
-            var pairs = CollisionDetector.DetectAll(Bodies, parallel, threadCount);
+            var pairs = CollisionDetector.DetectAll(Bodies, strategy, threadCount);
             var iterRestitution = i == 0 ? Restitution : 0f;
             CollisionResolver.ResolveAll(pairs, iterRestitution, Friction);
         }

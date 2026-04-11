@@ -5,14 +5,18 @@
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="System.Text.Json" Version="10.0.5" />
+        <PackageReference Include="System.Text.Json" Version="10.0.5" />
     </ItemGroup>
 
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-        <Copy SourceFiles="$(TargetPath)" DestinationFolder="..\..\UnityVisualization\Assets\Plugins\" />
+        <ItemGroup>
+            <AllOutputDlls Include="$(TargetDir)*.dll" />
+        </ItemGroup>
+        <Copy SourceFiles="@(AllOutputDlls)" DestinationFolder="..\..\UnityVisualization\Assets\Plugins\" />
     </Target>
     
 </Project>

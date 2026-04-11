@@ -1,3 +1,7 @@
-// See https://aka.ms/new-console-template for more information
+using PhysicsBenchmark;
 
-Console.WriteLine("Hello, World!");
+Console.WriteLine("Physics Engine Benchmark Suite");
+Console.WriteLine();
+
+VerificationRunner.Run();
+BenchmarkRunner.RunAll();

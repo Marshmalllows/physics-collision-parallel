@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using PhysicsEngine.Core;
 
@@ -36,17 +37,60 @@ public static class Integrator
         body.Rotation = Quaternion.Normalize(body.Rotation + spin * body.Rotation);
     }
 
-    public static void IntegrateAll(List<RigidBody> bodies, Vector3 gravity, float dt, float linearDamping, float angularDamping, bool parallel, int threadCount)
+    public static void IntegrateAll(List<RigidBody> bodies, Vector3 gravity, float dt,
+        float linearDamping, float angularDamping, ParallelStrategy strategy, int threadCount)
     {
-        if (parallel)
+        switch (strategy)
         {
-            var options = new ParallelOptions { MaxDegreeOfParallelism = threadCount };
-            Parallel.For(0, bodies.Count, options, i => Integrate(bodies[i], gravity, dt, linearDamping, angularDamping));
-        }
-        else
-        {
-            foreach (var body in bodies)
-                Integrate(body, gravity, dt, linearDamping, angularDamping);
+            case ParallelStrategy.ParallelFor:
+            {
+                var options = new ParallelOptions { MaxDegreeOfParallelism = threadCount };
+                Parallel.For(0, bodies.Count, options,
+                    i => Integrate(bodies[i], gravity, dt, linearDamping, angularDamping));
+                break;
+            }
+            case ParallelStrategy.TaskBased:
+            {
+                var chunkSize = Math.Max(1, (bodies.Count + threadCount - 1) / threadCount);
+                var tasks = new Task[Math.Min(threadCount, (bodies.Count + chunkSize - 1) / chunkSize)];
+                for (var t = 0; t < tasks.Length; t++)
+                {
+                    var start = t * chunkSize;
+                    var end = Math.Min(start + chunkSize, bodies.Count);
+                    tasks[t] = Task.Run(() =>
+                    {
+                        for (var i = start; i < end; i++)
+                            Integrate(bodies[i], gravity, dt, linearDamping, angularDamping);
+                    });
+                }
+                Task.WaitAll(tasks);
+                break;
+            }
+            case ParallelStrategy.ThreadPool:
+            {
+                var chunkSize = Math.Max(1, (bodies.Count + threadCount - 1) / threadCount);
+                var chunkCount = Math.Min(threadCount, (bodies.Count + chunkSize - 1) / chunkSize);
+                using var done = new CountdownEvent(chunkCount);
+                for (var t = 0; t < chunkCount; t++)
+                {
+                    var start = t * chunkSize;
+                    var end = Math.Min(start + chunkSize, bodies.Count);
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        for (var i = start; i < end; i++)
+                            Integrate(bodies[i], gravity, dt, linearDamping, angularDamping);
+                        done.Signal();
+                    });
+                }
+                done.Wait();
+                break;
+            }
+            default:
+            {
+                foreach (var body in bodies)
+                    Integrate(body, gravity, dt, linearDamping, angularDamping);
+                break;
+            }
         }
     }
 }
