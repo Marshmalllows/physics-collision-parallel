@@ -34,7 +34,7 @@ public class BodyVisualizer : MonoBehaviour
         var bodies = runner.World.Bodies;
         visuals = new GameObject[bodies.Count];
 
-        int wallCount = 0;
+        var wallCount = 0;
         for (int i = 0; i < bodies.Count; i++)
         {
             if (bodies[i].IsStatic) wallCount++;
@@ -70,6 +70,10 @@ public class BodyVisualizer : MonoBehaviour
                     box.HalfExtents.Z * 2f
                 );
             }
+            else if (body.Shape is ConvexMeshShape mesh)
+            {
+                go = BuildConvexMeshVisual(mesh);
+            }
             else
             {
                 go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -95,6 +99,7 @@ public class BodyVisualizer : MonoBehaviour
                     mat.color = c;
                     mat.SetFloat("_Metallic", 0.1f);
                     mat.SetFloat("_Glossiness", 0.5f);
+                    mat.SetFloat("_Smoothness", 0.5f);
                 }
             }
 
@@ -110,7 +115,7 @@ public class BodyVisualizer : MonoBehaviour
             return;
 
         var bodies = runner.World.Bodies;
-        for (int i = 0; i < bodies.Count; i++)
+        for (var i = 0; i < bodies.Count; i++)
         {
             if (visuals[i] == null || bodies[i].IsStatic)
                 continue;
@@ -202,6 +207,60 @@ public class BodyVisualizer : MonoBehaviour
         CreateWallQuad(room.transform, "Front",   new Vector3(0, 0, half),  Quaternion.Euler(0, 0, 0),   new Vector2(size, size), wallColor, true);
 
         return room;
+    }
+
+    static GameObject BuildConvexMeshVisual(ConvexMeshShape meshShape)
+    {
+        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        var verts = meshShape.Vertices;
+
+        if (meshShape.Triangles != null && meshShape.Triangles.Length > 0)
+        {
+            var srcVerts = meshShape.Triangles.Length;
+            var flatVerts = new Vector3[srcVerts];
+            var flatNormals = new Vector3[srcVerts];
+            var flatTris = new int[srcVerts];
+
+            for (int i = 0; i < meshShape.Triangles.Length; i += 3)
+            {
+                var a = new Vector3(verts[meshShape.Triangles[i]].X, verts[meshShape.Triangles[i]].Y, verts[meshShape.Triangles[i]].Z);
+                var b = new Vector3(verts[meshShape.Triangles[i + 1]].X, verts[meshShape.Triangles[i + 1]].Y, verts[meshShape.Triangles[i + 1]].Z);
+                var c = new Vector3(verts[meshShape.Triangles[i + 2]].X, verts[meshShape.Triangles[i + 2]].Y, verts[meshShape.Triangles[i + 2]].Z);
+                var normal = Vector3.Cross(b - a, c - a).normalized;
+
+                flatVerts[i] = a;
+                flatVerts[i + 1] = b;
+                flatVerts[i + 2] = c;
+                flatNormals[i] = normal;
+                flatNormals[i + 1] = normal;
+                flatNormals[i + 2] = normal;
+                flatTris[i] = i;
+                flatTris[i + 1] = i + 1;
+                flatTris[i + 2] = i + 2;
+            }
+
+            var mesh = new Mesh();
+            mesh.vertices = flatVerts;
+            mesh.normals = flatNormals;
+            mesh.triangles = flatTris;
+            mesh.RecalculateBounds();
+
+            go.GetComponent<MeshFilter>().mesh = mesh;
+        }
+        else
+        {
+            var min = new Vector3(verts[0].X, verts[0].Y, verts[0].Z);
+            var max = min;
+            for (int i = 1; i < verts.Length; i++)
+            {
+                var v = new Vector3(verts[i].X, verts[i].Y, verts[i].Z);
+                min = Vector3.Min(min, v);
+                max = Vector3.Max(max, v);
+            }
+            go.transform.localScale = max - min;
+        }
+
+        return go;
     }
 
     static void CreateWallQuad(Transform parent, string name, Vector3 pos, Quaternion rot, Vector2 size, Color color, bool receiveShadows)

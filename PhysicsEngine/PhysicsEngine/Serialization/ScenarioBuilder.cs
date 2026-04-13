@@ -23,6 +23,7 @@ public static class ScenarioBuilder
             {
                 ShapeType.Sphere => new SphereShape(bc.Radius),
                 ShapeType.Box => new BoxShape(bc.HalfExtents),
+                ShapeType.ConvexMesh when bc.MeshFile != null => new ConvexMeshShape(ObjLoader.Load(bc.MeshFile)),
                 _ => throw new ArgumentException($"Unknown shape type: {bc.ShapeType}")
             };
 

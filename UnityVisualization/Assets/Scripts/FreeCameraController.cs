@@ -6,13 +6,17 @@ public class FreeCameraController : MonoBehaviour
     public float moveSpeed = 10f;
     public float lookSensitivity = 0.1f;
     public float fastMultiplier = 3f;
-    public float roomBound = 9.5f;
 
+    float roomBound = 9.5f;
     float yaw;
     float pitch;
 
     void Start()
     {
+        var runner = FindAnyObjectByType<SimulationRunner>();
+        if (runner != null)
+            roomBound = runner.roomSize / 2f - 0.5f;
+
         yaw = transform.eulerAngles.y;
         pitch = transform.eulerAngles.x;
     }

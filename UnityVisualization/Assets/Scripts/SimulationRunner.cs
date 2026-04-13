@@ -1,6 +1,7 @@
 using UnityEngine;
 using PhysicsEngine.Core;
 using PhysicsEngine.Dynamics;
+using PhysicsEngine.Serialization;
 using SysNumerics = System.Numerics;
 
 public class SimulationRunner : MonoBehaviour
@@ -11,6 +12,8 @@ public class SimulationRunner : MonoBehaviour
     [Header("Bodies")]
     public int sphereCount = 10;
     public int boxCount = 5;
+    public int convexMeshCount = 3;
+    public string modelsDir = "Models";
 
     [Header("Spawn")]
     public float minSphereRadius = 0.5f;
@@ -29,6 +32,10 @@ public class SimulationRunner : MonoBehaviour
     public float linearDamping = 0.999f;
     [Range(0.9f, 1f)]
     public float angularDamping = 0.98f;
+
+    [Header("Parallelism")]
+    public bool useParallel = true;
+    public int threadCount = 0;
 
     public PhysicsWorld World { get; private set; }
 
@@ -49,7 +56,15 @@ public class SimulationRunner : MonoBehaviour
 
     void FixedUpdate()
     {
-        World.Simulate(Time.fixedDeltaTime);
+        if (useParallel)
+        {
+            var tc = threadCount > 0 ? threadCount : System.Environment.ProcessorCount;
+            World.Simulate(Time.fixedDeltaTime, ParallelStrategy.ParallelFor, tc);
+        }
+        else
+        {
+            World.Simulate(Time.fixedDeltaTime);
+        }
     }
 
     void CreateWalls()
@@ -81,7 +96,24 @@ public class SimulationRunner : MonoBehaviour
     {
         var half = roomSize / 2f;
 
-        for (int i = 0; i < sphereCount; i++)
+        string[] objFiles = null;
+        var searchDirs = new[]
+        {
+            System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), modelsDir),
+            System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "..", modelsDir),
+        };
+        foreach (var dir in searchDirs)
+        {
+            if (System.IO.Directory.Exists(dir))
+            {
+                objFiles = System.IO.Directory.GetFiles(dir, "*.obj");
+                if (objFiles.Length > 0) break;
+            }
+        }
+        if (objFiles != null && objFiles.Length == 0)
+            objFiles = null;
+
+        for (var i = 0; i < sphereCount; i++)
         {
             var radius = Random.Range(minSphereRadius, maxSphereRadius);
             var pos = RandomPositionInRoom(half - radius);
@@ -90,7 +122,7 @@ public class SimulationRunner : MonoBehaviour
             World.AddBody(body);
         }
 
-        for (int i = 0; i < boxCount; i++)
+        for (var i = 0; i < boxCount; i++)
         {
             var he = new SysNumerics.Vector3(
                 Random.Range(minBoxHalfExtent, maxBoxHalfExtent),
@@ -101,6 +133,44 @@ public class SimulationRunner : MonoBehaviour
             var pos = RandomPositionInRoom(half - maxHe);
             var vel = RandomVelocity();
             var body = new RigidBody(new BoxShape(he), 1f, pos) { Velocity = vel };
+            World.AddBody(body);
+        }
+
+        for (var i = 0; i < convexMeshCount; i++)
+        {
+            SysNumerics.Vector3[] verts;
+            int[] tris = null;
+            float extent;
+
+            var scale = Random.Range(minBoxHalfExtent, maxBoxHalfExtent);
+
+            if (objFiles != null && objFiles.Length > 0)
+            {
+                var file = objFiles[Random.Range(0, objFiles.Length)];
+                var (objVerts, objTris) = ObjLoader.LoadWithFaces(file);
+                verts = new SysNumerics.Vector3[objVerts.Length];
+                for (int vi = 0; vi < objVerts.Length; vi++)
+                    verts[vi] = objVerts[vi] * scale;
+                tris = objTris.Length > 0 ? objTris : null;
+
+                var min = verts[0]; var max = verts[0];
+                foreach (var v in verts) { min = SysNumerics.Vector3.Min(min, v); max = SysNumerics.Vector3.Max(max, v); }
+                extent = Mathf.Max((max - min).X, Mathf.Max((max - min).Y, (max - min).Z)) / 2f;
+            }
+            else
+            {
+                var he = new SysNumerics.Vector3(
+                    Random.Range(minBoxHalfExtent, maxBoxHalfExtent),
+                    Random.Range(minBoxHalfExtent, maxBoxHalfExtent),
+                    Random.Range(minBoxHalfExtent, maxBoxHalfExtent)
+                );
+                verts = ConvexMeshShape.GenerateBoxVertices(he);
+                extent = Mathf.Max(he.X, Mathf.Max(he.Y, he.Z));
+            }
+
+            var pos = RandomPositionInRoom(half - extent);
+            var vel = RandomVelocity();
+            var body = new RigidBody(new ConvexMeshShape(verts, tris), 1f, pos) { Velocity = vel };
             World.AddBody(body);
         }
     }

@@ -7,7 +7,8 @@ namespace PhysicsEngine.Serialization;
 public enum ShapeType
 {
     Sphere,
-    Box
+    Box,
+    ConvexMesh
 }
 
 public class BodyConfig
@@ -32,6 +33,7 @@ public class BodyConfig
     public float AngularVelocityY { get; set; }
     public float AngularVelocityZ { get; set; }
     public bool IsStatic { get; set; }
+    public string? MeshFile { get; set; }
 
     [JsonIgnore]
     public Vector3 HalfExtents

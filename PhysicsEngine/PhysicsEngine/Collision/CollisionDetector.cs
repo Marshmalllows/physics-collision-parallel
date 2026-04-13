@@ -223,14 +223,70 @@ public static class CollisionDetector
     public static ContactPoint? Detect(RigidBody a, RigidBody b)
     {
         if (a.IsStatic && b.IsStatic) return null;
+        var aResting = a.IsSleeping || a.SleepFrames > 0;
+        var bResting = b.IsSleeping || b.SleepFrames > 0;
+        if (aResting && (b.IsStatic || bResting)) return null;
+        if (bResting && (a.IsStatic || aResting)) return null;
         return (a.Shape, b.Shape) switch
         {
             (SphereShape, SphereShape) => SphereSphere(a, b),
             (SphereShape, BoxShape) => SphereBox(a, b),
             (BoxShape, SphereShape) => Flip(SphereBox(b, a)),
             (BoxShape, BoxShape) => BoxBox(a, b),
+            (ConvexMeshShape, ConvexMeshShape) => ConvexConvex(a, b),
+            (SphereShape, ConvexMeshShape) => SphereConvex(a, b),
+            (ConvexMeshShape, SphereShape) => Flip(SphereConvex(b, a)),
+            (BoxShape, ConvexMeshShape) => BoxConvex(a, b),
+            (ConvexMeshShape, BoxShape) => Flip(BoxConvex(b, a)),
             _ => null
         };
+    }
+
+    public static ContactPoint? ConvexConvex(RigidBody a, RigidBody b)
+    {
+        var meshA = (ConvexMeshShape)a.Shape;
+        var meshB = (ConvexMeshShape)b.Shape;
+        var vertsA = meshA.GetWorldVertices(a.Position, a.Rotation);
+        var vertsB = meshB.GetWorldVertices(b.Position, b.Rotation);
+
+        if (!GjkEpa.CheckIntersection(vertsA, vertsB, out var contact, out var depth, out var normal))
+            return null;
+
+        return new ContactPoint(contact, normal, depth);
+    }
+
+    public static ContactPoint? SphereConvex(RigidBody sphere, RigidBody convex)
+    {
+        var ss = (SphereShape)sphere.Shape;
+        var mesh = (ConvexMeshShape)convex.Shape;
+
+        var sphereVerts = ConvexMeshShape.GenerateSphereVertices(ss.Radius);
+        for (int i = 0; i < sphereVerts.Length; i++)
+            sphereVerts[i] += sphere.Position;
+
+        var meshVerts = mesh.GetWorldVertices(convex.Position, convex.Rotation);
+
+        if (!GjkEpa.CheckIntersection(sphereVerts, meshVerts, out var contact, out var depth, out var normal))
+            return null;
+
+        return new ContactPoint(contact, normal, depth);
+    }
+
+    public static ContactPoint? BoxConvex(RigidBody box, RigidBody convex)
+    {
+        var bs = (BoxShape)box.Shape;
+        var mesh = (ConvexMeshShape)convex.Shape;
+
+        var boxVerts = ConvexMeshShape.GenerateBoxVertices(bs.HalfExtents);
+        for (int i = 0; i < boxVerts.Length; i++)
+            boxVerts[i] = Vector3.Transform(boxVerts[i], box.Rotation) + box.Position;
+
+        var meshVerts = mesh.GetWorldVertices(convex.Position, convex.Rotation);
+
+        if (!GjkEpa.CheckIntersection(boxVerts, meshVerts, out var contact, out var depth, out var normal))
+            return null;
+
+        return new ContactPoint(contact, normal, depth);
     }
 
     public static List<CollisionPair> DetectAll(List<RigidBody> bodies, ParallelStrategy strategy, int threadCount)

@@ -18,6 +18,8 @@ public class RigidBody
 
     public IShape Shape { get; }
     public bool IsStatic { get; }
+    public bool IsSleeping { get; set; }
+    public int SleepFrames { get; set; }
 
     public RigidBody(IShape shape, float mass, Vector3 position, bool isStatic = false)
     {

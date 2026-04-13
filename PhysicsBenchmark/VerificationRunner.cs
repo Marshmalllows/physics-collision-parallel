@@ -1,4 +1,6 @@
 using System.Numerics;
+using PhysicsEngine.Collision;
+using PhysicsEngine.Core;
 using PhysicsEngine.Dynamics;
 using PhysicsEngine.Serialization;
 
@@ -58,6 +60,45 @@ public static class VerificationRunner
         Console.WriteLine(mismatches == 0
             ? "PASS: all positions match within eps."
             : $"FAIL: {mismatches}/{worldSeq.Bodies.Count} bodies exceed eps.");
+
+        Console.WriteLine();
+
+        RunConvexMeshTest();
+    }
+
+    private static void RunConvexMeshTest()
+    {
+        Console.WriteLine("Verification: ConvexMesh collision (GJK+EPA)");
+
+        var cubeVerts = ConvexMeshShape.GenerateBoxVertices(new Vector3(0.5f, 0.5f, 0.5f));
+
+        var bodyA = new RigidBody(new ConvexMeshShape(cubeVerts), 1f, new Vector3(0, 0, 0));
+        var bodyB = new RigidBody(new ConvexMeshShape(cubeVerts), 1f, new Vector3(0.8f, 0, 0));
+        var bodyC = new RigidBody(new ConvexMeshShape(cubeVerts), 1f, new Vector3(5f, 0, 0));
+
+        var hit = CollisionDetector.ConvexConvex(bodyA, bodyB);
+        var miss = CollisionDetector.ConvexConvex(bodyA, bodyC);
+
+        var passOverlap = hit != null && hit.Value.PenetrationDepth > 0;
+        var passSeparated = miss == null;
+
+        Console.WriteLine($"  Overlapping cubes (dist=0.8): {(passOverlap ? "HIT" : "MISS")} depth={hit?.PenetrationDepth:F4}");
+        Console.WriteLine($"  Separated cubes (dist=5.0):   {(passSeparated ? "NO HIT" : "FALSE HIT")}");
+
+        var sphere = new RigidBody(new SphereShape(0.5f), 1f, new Vector3(0, 0, 0));
+        var meshNear = new RigidBody(new ConvexMeshShape(cubeVerts), 1f, new Vector3(0.6f, 0, 0));
+        var sphereHit = CollisionDetector.SphereConvex(sphere, meshNear);
+        var passSphereConvex = sphereHit != null && sphereHit.Value.PenetrationDepth > 0;
+        Console.WriteLine($"  Sphere vs ConvexMesh (dist=0.6): {(passSphereConvex ? "HIT" : "MISS")} depth={sphereHit?.PenetrationDepth:F4}");
+
+        var box = new RigidBody(new BoxShape(new Vector3(0.5f, 0.5f, 0.5f)), 1f, new Vector3(0, 0, 0));
+        var meshNear2 = new RigidBody(new ConvexMeshShape(cubeVerts), 1f, new Vector3(0.7f, 0, 0));
+        var boxHit = CollisionDetector.BoxConvex(box, meshNear2);
+        var passBoxConvex = boxHit != null && boxHit.Value.PenetrationDepth > 0;
+        Console.WriteLine($"  Box vs ConvexMesh (dist=0.7):    {(passBoxConvex ? "HIT" : "MISS")} depth={boxHit?.PenetrationDepth:F4}");
+
+        var allPass = passOverlap && passSeparated && passSphereConvex && passBoxConvex;
+        Console.WriteLine(allPass ? "PASS: all ConvexMesh collision tests passed." : "FAIL: some ConvexMesh tests failed.");
 
         Console.WriteLine();
     }

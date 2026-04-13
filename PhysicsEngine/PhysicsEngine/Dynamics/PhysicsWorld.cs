@@ -13,7 +13,8 @@ public class PhysicsWorld
     public float Friction { get; set; } = 0.4f;
     public int SolverIterations { get; set; } = 1;
     public float SleepThreshold { get; set; } = 0.1f;
-    public float AngularSleepThreshold { get; set; } = 0.05f;
+    public float AngularSleepThreshold { get; set; } = 0.3f;
+    public int SleepFramesRequired { get; set; } = 30;
     public float LinearDamping { get; set; } = 0.999f;
     public float AngularDamping { get; set; } = 0.98f;
 
@@ -31,6 +32,22 @@ public class PhysicsWorld
             var pairs = CollisionDetector.DetectAll(Bodies, strategy, threadCount);
             var iterRestitution = i == 0 ? Restitution : 0f;
             CollisionResolver.ResolveAll(pairs, iterRestitution, Friction);
+
+            foreach (var pair in pairs)
+            {
+                var a = pair.BodyA;
+                var b = pair.BodyB;
+                if (a.IsSleeping && !b.IsStatic && !b.IsSleeping)
+                {
+                    a.IsSleeping = false;
+                    a.SleepFrames = 0;
+                }
+                if (b.IsSleeping && !a.IsStatic && !a.IsSleeping)
+                {
+                    b.IsSleeping = false;
+                    b.SleepFrames = 0;
+                }
+            }
         }
 
         if (SleepThreshold > 0)
@@ -39,13 +56,31 @@ public class PhysicsWorld
             var angSleepSq = AngularSleepThreshold * AngularSleepThreshold;
             foreach (var body in Bodies)
             {
-                if (body.IsStatic) continue;
-                if (body.Velocity.LengthSquared() < linSleepSq && body.AngularVelocity.LengthSquared() < angSleepSq)
+                if (body.IsStatic || body.IsSleeping) continue;
+
+                // Zero small velocities independently to prevent EPA noise buildup
+                var linSmall = body.Velocity.LengthSquared() < linSleepSq;
+                var angSmall = body.AngularVelocity.LengthSquared() < angSleepSq;
+
+                if (linSmall) body.Velocity = Vector3.Zero;
+                if (angSmall) body.AngularVelocity = Vector3.Zero;
+
+                // Energy-based sleep: use total kinetic energy instead of separate thresholds
+                var energy = body.Velocity.LengthSquared() + body.AngularVelocity.LengthSquared();
+                if (energy < linSleepSq + angSleepSq)
                 {
                     body.Velocity = Vector3.Zero;
                     body.AngularVelocity = Vector3.Zero;
+                    body.SleepFrames++;
+                    if (body.SleepFrames >= SleepFramesRequired)
+                        body.IsSleeping = true;
+                }
+                else
+                {
+                    body.SleepFrames = 0;
                 }
             }
         }
     }
+
 }
