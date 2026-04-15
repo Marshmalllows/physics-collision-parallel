@@ -22,3 +22,9 @@ UnityVisualization/Builds/
 
 # Benchmark results
 PhysicsBenchmark/results/
+
+# Unity build output
+UnityVisualization/Release/
+
+# Unity recovery
+UnityVisualization/Assets/_Recovery/

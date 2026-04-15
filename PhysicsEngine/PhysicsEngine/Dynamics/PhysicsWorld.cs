@@ -27,6 +27,10 @@ public class PhysicsWorld
     {
         Integrator.IntegrateAll(Bodies, Gravity, dt, LinearDamping, AngularDamping, strategy, threadCount);
 
+        HashSet<RigidBody> inContact = null;
+        if (SleepThreshold > 0)
+            inContact = [];
+
         for (var i = 0; i < SolverIterations; i++)
         {
             var pairs = CollisionDetector.DetectAll(Bodies, strategy, threadCount);
@@ -47,6 +51,12 @@ public class PhysicsWorld
                     b.IsSleeping = false;
                     b.SleepFrames = 0;
                 }
+
+                if (inContact != null)
+                {
+                    inContact.Add(a);
+                    inContact.Add(b);
+                }
             }
         }
 
@@ -58,16 +68,16 @@ public class PhysicsWorld
             {
                 if (body.IsStatic || body.IsSleeping) continue;
 
-                // Zero small velocities independently to prevent EPA noise buildup
+                var touching = inContact.Contains(body);
+
                 var linSmall = body.Velocity.LengthSquared() < linSleepSq;
                 var angSmall = body.AngularVelocity.LengthSquared() < angSleepSq;
 
                 if (linSmall) body.Velocity = Vector3.Zero;
                 if (angSmall) body.AngularVelocity = Vector3.Zero;
 
-                // Energy-based sleep: use total kinetic energy instead of separate thresholds
                 var energy = body.Velocity.LengthSquared() + body.AngularVelocity.LengthSquared();
-                if (energy < linSleepSq + angSleepSq)
+                if (energy < linSleepSq + angSleepSq && touching)
                 {
                     body.Velocity = Vector3.Zero;
                     body.AngularVelocity = Vector3.Zero;

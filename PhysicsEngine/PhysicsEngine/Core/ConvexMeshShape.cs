@@ -83,9 +83,9 @@ public class ConvexMeshShape : IShape
             midCache.Clear();
             foreach (var (a, b, c) in triList)
             {
-                int ab = GetMidpoint(vertList, midCache, a, b);
-                int bc = GetMidpoint(vertList, midCache, b, c);
-                int ca = GetMidpoint(vertList, midCache, c, a);
+                var ab = GetMidpoint(vertList, midCache, a, b);
+                var bc = GetMidpoint(vertList, midCache, b, c);
+                var ca = GetMidpoint(vertList, midCache, c, a);
                 newTris.Add((a, ab, ca));
                 newTris.Add((b, bc, ab));
                 newTris.Add((c, ca, bc));
@@ -95,7 +95,7 @@ public class ConvexMeshShape : IShape
         }
 
         var result = new Vector3[vertList.Count];
-        for (int i = 0; i < vertList.Count; i++)
+        for (var i = 0; i < vertList.Count; i++)
             result[i] = vertList[i] * radius;
         return result;
     }
@@ -104,7 +104,7 @@ public class ConvexMeshShape : IShape
         System.Collections.Generic.Dictionary<long, int> cache, int a, int b)
     {
         var key = a < b ? ((long)a << 32) | (uint)b : ((long)b << 32) | (uint)a;
-        if (cache.TryGetValue(key, out int idx)) return idx;
+        if (cache.TryGetValue(key, out var idx)) return idx;
         var mid = Vector3.Normalize((verts[a] + verts[b]) * 0.5f);
         idx = verts.Count;
         verts.Add(mid);

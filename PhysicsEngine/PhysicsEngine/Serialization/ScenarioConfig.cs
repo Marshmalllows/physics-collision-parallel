@@ -85,6 +85,9 @@ public class ScenarioConfig
     public float Restitution { get; set; } = 0.5f;
     public float Friction { get; set; } = 0.4f;
     public int SolverIterations { get; set; } = 1;
+    public float LinearDamping { get; set; } = 0.999f;
+    public float AngularDamping { get; set; } = 0.98f;
+    public float SleepThreshold { get; set; } = 0.1f;
     public List<BodyConfig> Bodies { get; set; } = [];
 
     [JsonIgnore]

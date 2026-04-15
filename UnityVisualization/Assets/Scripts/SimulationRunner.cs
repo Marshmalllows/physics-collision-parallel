@@ -6,6 +6,9 @@ using SysNumerics = System.Numerics;
 
 public class SimulationRunner : MonoBehaviour
 {
+    [Header("Scenario")]
+    public string scenarioFile = "";
+
     [Header("Room")]
     public float roomSize = 20f;
 
@@ -41,17 +44,63 @@ public class SimulationRunner : MonoBehaviour
 
     void Awake()
     {
-        World = new PhysicsWorld
+        if (ScenarioSelector.PendingScenario != null)
         {
-            Gravity = new SysNumerics.Vector3(0f, gravity, 0f),
-            Restitution = restitution,
-            Friction = friction,
-            SolverIterations = solverIterations,
-            LinearDamping = linearDamping,
-            AngularDamping = angularDamping
-        };
-        CreateWalls();
-        SpawnBodies();
+            scenarioFile = ScenarioSelector.PendingScenario;
+            ScenarioSelector.PendingScenario = null;
+        }
+
+        if (ScenarioSelector.PendingParams.HasValue)
+        {
+            var p = ScenarioSelector.PendingParams.Value;
+            roomSize = p.roomSize;
+            sphereCount = p.sphereCount;
+            boxCount = p.boxCount;
+            convexMeshCount = p.convexMeshCount;
+            gravity = p.gravity;
+            restitution = p.restitution;
+            friction = p.friction;
+            solverIterations = p.solverIterations;
+            linearDamping = p.linearDamping;
+            angularDamping = p.angularDamping;
+            minSpeed = p.minSpeed;
+            maxSpeed = p.maxSpeed;
+            useParallel = p.useParallel;
+            ScenarioSelector.PendingParams = null;
+        }
+
+        if (!string.IsNullOrEmpty(scenarioFile))
+        {
+            LoadFromScenario(scenarioFile);
+        }
+        else
+        {
+            World = new PhysicsWorld
+            {
+                Gravity = new SysNumerics.Vector3(0f, gravity, 0f),
+                Restitution = restitution,
+                Friction = friction,
+                SolverIterations = solverIterations,
+                LinearDamping = linearDamping,
+                AngularDamping = angularDamping
+            };
+            CreateWalls();
+            SpawnBodies();
+        }
+    }
+
+    void LoadFromScenario(string fileName)
+    {
+        var path = System.IO.Path.Combine(Application.streamingAssetsPath, "Scenarios", fileName);
+        if (!System.IO.File.Exists(path))
+        {
+            Debug.LogError($"Scenario file not found: {path}");
+            return;
+        }
+
+        var config = ScenarioSerializer.LoadFromJson(path);
+        roomSize = config.BoxHalfSize.X * 2f;
+        World = ScenarioBuilder.BuildWorld(config);
     }
 
     void FixedUpdate()
@@ -99,6 +148,7 @@ public class SimulationRunner : MonoBehaviour
         string[] objFiles = null;
         var searchDirs = new[]
         {
+            System.IO.Path.Combine(Application.streamingAssetsPath, modelsDir),
             System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), modelsDir),
             System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "..", modelsDir),
         };

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
+using PhysicsEngine.Core;
 using PhysicsEngine.Dynamics;
-using PhysicsEngine.Serialization;
 
 namespace PhysicsBenchmark;
 
@@ -14,53 +14,68 @@ public static class BenchmarkRunner
     private const int StepsPerRun = 500;
     private const string ResultsDir = "results";
 
+    private static readonly Vector3[] TetraVerts =
+    [
+        new(0f, 0.612f, 0f),
+        new(-0.5f, -0.204f, 0.289f),
+        new(0.5f, -0.204f, 0.289f),
+        new(0f, -0.204f, -0.577f)
+    ];
+
     public static void RunAll()
     {
         Directory.CreateDirectory(ResultsDir);
-
         var coreCount = Environment.ProcessorCount;
-        Console.WriteLine($"CPU cores: {coreCount}");
-        Console.WriteLine($"Iterations per measurement: {MeasuredRuns} (+ {WarmupRuns} warmup)");
-        Console.WriteLine();
-
         RunSeries1(coreCount);
         RunSeries2();
         RunSeries3();
     }
 
-    private static void RunSeries1(int threadCount)
+    private static void PrintBenchmarkHeader()
     {
-        Console.WriteLine("Series 1: Body Count Scaling");
-        Console.WriteLine($"Thread count (fixed): {threadCount}");
+        Directory.CreateDirectory(ResultsDir);
+        Console.WriteLine("Benchmarks (ConvexMesh tetrahedra)");
+        Console.WriteLine("----------------------------------");
+        Console.WriteLine($"CPU cores: {Environment.ProcessorCount}, runs: {MeasuredRuns} (+{WarmupRuns} warmup), steps/run: {StepsPerRun}");
+        Console.WriteLine();
+    }
 
-        int[] bodyCounts = [100, 250, 500, 1000, 2500, 5000];
+    public static void RunSeries1(int threadCount = 0)
+    {
+        if (threadCount <= 0) threadCount = Environment.ProcessorCount;
+        PrintBenchmarkHeader();
+        Console.WriteLine("Series 1: Body count scaling");
+        Console.WriteLine($"Threads: {threadCount}");
+
+        int[] bodyCounts = [50, 100, 200, 400, 800];
         var rows = new List<CsvRow>();
 
         PrintHeader();
 
         foreach (var bodyCount in bodyCounts)
         {
-            var config = MakeScenario(bodyCount);
-            var seqMs = Measure(config, ParallelStrategy.Sequential, 1);
-            var parMs = Measure(config, ParallelStrategy.ParallelFor, threadCount);
+            var world = MakeConvexWorld(bodyCount);
+            var seqMs = Measure(world, bodyCount, ParallelStrategy.Sequential, 1);
+            var parMs = Measure(world, bodyCount, ParallelStrategy.ParallelFor, threadCount);
             var speedup = seqMs / parMs;
 
             PrintRow(bodyCount, seqMs, parMs, speedup);
             rows.Add(new CsvRow(bodyCount, seqMs, parMs, speedup));
         }
 
-        WriteCsv(Path.Combine(ResultsDir, "series1.csv"), "bodyCount", rows);
-        Console.WriteLine($"Saved to {ResultsDir}/series1.csv");
+        WriteCsv(Path.Combine(ResultsDir, "series1_convex.csv"), "bodyCount", rows);
+        Console.WriteLine($"Saved to {ResultsDir}/series1_convex.csv");
         Console.WriteLine();
     }
 
-    private static void RunSeries2()
+    public static void RunSeries2()
     {
-        Console.WriteLine("Series 2: Thread Count Impact");
-        const int bodyCount = 5000;
-        var config = MakeScenario(bodyCount);
+        PrintBenchmarkHeader();
+        Console.WriteLine("Series 2: Thread count impact");
+        const int bodyCount = 400;
+        var world = MakeConvexWorld(bodyCount);
 
-        var seqMs = Measure(config, ParallelStrategy.Sequential, 1);
+        var seqMs = Measure(world, bodyCount, ParallelStrategy.Sequential, 1);
         Console.WriteLine($"Sequential baseline ({bodyCount} bodies): {seqMs:F2} ms");
 
         int[] threadCounts = [2, 4, 8, 16];
@@ -70,38 +85,39 @@ public static class BenchmarkRunner
 
         foreach (var tc in threadCounts)
         {
-            var parMs = Measure(config, ParallelStrategy.ParallelFor, tc);
+            var parMs = Measure(world, bodyCount, ParallelStrategy.ParallelFor, tc);
             var speedup = seqMs / parMs;
 
             PrintRow(tc, seqMs, parMs, speedup);
             rows.Add(new CsvRow(tc, seqMs, parMs, speedup));
         }
 
-        WriteCsv(Path.Combine(ResultsDir, "series2.csv"), "threadCount", rows);
-        Console.WriteLine($"Saved to {ResultsDir}/series2.csv");
+        WriteCsv(Path.Combine(ResultsDir, "series2_convex.csv"), "threadCount", rows);
+        Console.WriteLine($"Saved to {ResultsDir}/series2_convex.csv");
         Console.WriteLine();
     }
 
-    private static void RunSeries3()
+    public static void RunSeries3()
     {
-        Console.WriteLine("Series 3: Parallelization Strategy Comparison");
-        const int bodyCount = 5000;
+        PrintBenchmarkHeader();
+        Console.WriteLine("Series 3: Strategy comparison");
+        const int bodyCount = 400;
         var threadCount = Environment.ProcessorCount;
-        var config = MakeScenario(bodyCount);
+        var world = MakeConvexWorld(bodyCount);
 
-        var seqMs = Measure(config, ParallelStrategy.Sequential, 1);
-        var parForMs = Measure(config, ParallelStrategy.ParallelFor, threadCount);
-        var taskMs = Measure(config, ParallelStrategy.TaskBased, threadCount);
-        var poolMs = Measure(config, ParallelStrategy.ThreadPool, threadCount);
+        var seqMs = Measure(world, bodyCount, ParallelStrategy.Sequential, 1);
+        var parForMs = Measure(world, bodyCount, ParallelStrategy.ParallelFor, threadCount);
+        var taskMs = Measure(world, bodyCount, ParallelStrategy.TaskBased, threadCount);
+        var poolMs = Measure(world, bodyCount, ParallelStrategy.ThreadPool, threadCount);
 
         Console.WriteLine($"{"Strategy",-16} {"Time (ms)",14} {"Speedup",10}");
-        Console.WriteLine($"{"",-16} {"",14} {"",10}".Replace(' ', '-'));
+        Console.WriteLine(new string('-', 42));
         Console.WriteLine($"{"Sequential",-16} {seqMs,14:F2} {"1.00x",10}");
         Console.WriteLine($"{"Parallel.For",-16} {parForMs,14:F2} {seqMs / parForMs,9:F2}x");
         Console.WriteLine($"{"Task.Run",-16} {taskMs,14:F2} {seqMs / taskMs,9:F2}x");
         Console.WriteLine($"{"ThreadPool",-16} {poolMs,14:F2} {seqMs / poolMs,9:F2}x");
 
-        var path = Path.Combine(ResultsDir, "series3.csv");
+        var path = Path.Combine(ResultsDir, "series3_convex.csv");
         using var writer = new StreamWriter(path);
         writer.WriteLine("strategy,sequentialMs,strategyMs,speedup");
         writer.WriteLine($"Sequential,{seqMs:F4},{seqMs:F4},{1.0:F4}");
@@ -109,28 +125,77 @@ public static class BenchmarkRunner
         writer.WriteLine($"TaskBased,{seqMs:F4},{taskMs:F4},{seqMs / taskMs:F4}");
         writer.WriteLine($"ThreadPool,{seqMs:F4},{poolMs:F4},{seqMs / poolMs:F4}");
 
-        Console.WriteLine($"Saved to {ResultsDir}/series3.csv");
+        Console.WriteLine($"Saved to {ResultsDir}/series3_convex.csv");
         Console.WriteLine();
     }
 
-    private static ScenarioConfig MakeScenario(int bodyCount)
+    private static PhysicsWorld MakeConvexWorld(int bodyCount)
     {
-        var boxHalf = MathF.Cbrt(bodyCount * 8f);
-        return ScenarioBuilder.GenerateRandom(Seed, bodyCount, new Vector3(boxHalf, boxHalf, boxHalf));
+        var rng = new Random(Seed);
+        var boxHalf = MathF.Cbrt(bodyCount * 12f);
+
+        var world = new PhysicsWorld
+        {
+            Gravity = new Vector3(0, -9.81f, 0),
+            Restitution = 0.5f,
+            Friction = 0.4f,
+            SolverIterations = 1,
+            SleepThreshold = 0f
+        };
+
+        AddWalls(world, boxHalf);
+
+        for (int i = 0; i < bodyCount; i++)
+        {
+            var scale = 0.3f + (float)rng.NextDouble() * 0.5f;
+            var verts = new Vector3[TetraVerts.Length];
+            for (int v = 0; v < TetraVerts.Length; v++)
+                verts[v] = TetraVerts[v] * scale;
+
+            var margin = scale;
+            var pos = new Vector3(
+                RandomRange(rng, -boxHalf + margin, boxHalf - margin),
+                RandomRange(rng, -boxHalf + margin, boxHalf - margin),
+                RandomRange(rng, -boxHalf + margin, boxHalf - margin));
+            var vel = new Vector3(
+                RandomRange(rng, -2f, 2f),
+                RandomRange(rng, -2f, 2f),
+                RandomRange(rng, -2f, 2f));
+
+            var body = new RigidBody(new ConvexMeshShape(verts), 1f + (float)rng.NextDouble() * 4f, pos)
+            {
+                Velocity = vel
+            };
+            world.AddBody(body);
+        }
+
+        return world;
     }
 
-    private static double Measure(ScenarioConfig config, ParallelStrategy strategy, int threadCount)
+    private static void AddWalls(PhysicsWorld world, float halfSize)
+    {
+        var h = new Vector3(halfSize, halfSize, halfSize);
+        var t = 0.5f;
+        world.AddBody(new RigidBody(new BoxShape(h with { Y = t }), 0f, new Vector3(0, -halfSize - t, 0), isStatic: true));
+        world.AddBody(new RigidBody(new BoxShape(h with { Y = t }), 0f, new Vector3(0, halfSize + t, 0), isStatic: true));
+        world.AddBody(new RigidBody(new BoxShape(h with { X = t }), 0f, new Vector3(-halfSize - t, 0, 0), isStatic: true));
+        world.AddBody(new RigidBody(new BoxShape(h with { X = t }), 0f, new Vector3(halfSize + t, 0, 0), isStatic: true));
+        world.AddBody(new RigidBody(new BoxShape(h with { Z = t }), 0f, new Vector3(0, 0, -halfSize - t), isStatic: true));
+        world.AddBody(new RigidBody(new BoxShape(h with { Z = t }), 0f, new Vector3(0, 0, halfSize + t), isStatic: true));
+    }
+
+    private static double Measure(PhysicsWorld template, int bodyCount, ParallelStrategy strategy, int threadCount)
     {
         var times = new double[TotalRuns];
         var sw = new Stopwatch();
 
         for (var run = 0; run < TotalRuns; run++)
         {
-            var world = ScenarioBuilder.BuildWorld(config);
+            var world = MakeConvexWorld(bodyCount);
 
             sw.Restart();
             for (var step = 0; step < StepsPerRun; step++)
-                world.Simulate(config.TimeStep, strategy, threadCount);
+                world.Simulate(0.02f, strategy, threadCount);
             sw.Stop();
 
             times[run] = sw.Elapsed.TotalMilliseconds;
@@ -142,10 +207,15 @@ public static class BenchmarkRunner
         return sum / MeasuredRuns;
     }
 
+    private static float RandomRange(Random rng, float min, float max)
+    {
+        return min + (float)rng.NextDouble() * (max - min);
+    }
+
     private static void PrintHeader(string paramName = "Bodies")
     {
         Console.WriteLine($"{paramName,-10} {"Seq (ms)",14} {"Par (ms)",14} {"Speedup",10}");
-        Console.WriteLine($"{"",-10} {"",14} {"",14} {"",10}".Replace(' ', '-'));
+        Console.WriteLine(new string('-', 50));
     }
 
     private static void PrintRow(int param, double seqMs, double parMs, double speedup)

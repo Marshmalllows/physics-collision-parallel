@@ -14,7 +14,10 @@ public static class ScenarioBuilder
             Gravity = config.Gravity,
             Restitution = config.Restitution,
             Friction = config.Friction,
-            SolverIterations = config.SolverIterations
+            SolverIterations = config.SolverIterations,
+            LinearDamping = config.LinearDamping,
+            AngularDamping = config.AngularDamping,
+            SleepThreshold = config.SleepThreshold
         };
 
         foreach (var bc in config.Bodies)
@@ -23,7 +26,7 @@ public static class ScenarioBuilder
             {
                 ShapeType.Sphere => new SphereShape(bc.Radius),
                 ShapeType.Box => new BoxShape(bc.HalfExtents),
-                ShapeType.ConvexMesh when bc.MeshFile != null => new ConvexMeshShape(ObjLoader.Load(bc.MeshFile)),
+                ShapeType.ConvexMesh when bc.MeshFile != null => BuildConvexMesh(bc.MeshFile),
                 _ => throw new ArgumentException($"Unknown shape type: {bc.ShapeType}")
             };
 
@@ -38,6 +41,12 @@ public static class ScenarioBuilder
         }
 
         return world;
+    }
+
+    private static ConvexMeshShape BuildConvexMesh(string meshFile)
+    {
+        var (verts, tris) = ObjLoader.LoadWithFaces(meshFile);
+        return new ConvexMeshShape(verts, tris.Length > 0 ? tris : null);
     }
 
     public static ScenarioConfig GenerateRandom(int seed, int bodyCount, Vector3 boxHalfSize)

@@ -154,7 +154,6 @@ MonoBehaviour:
   moveSpeed: 10
   lookSensitivity: 0.1
   fastMultiplier: 3
-  roomBound: 9.5
 --- !u!114 &500577017
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -411,6 +410,7 @@ GameObject:
   - component: {fileID: 1697582048}
   - component: {fileID: 1697582047}
   - component: {fileID: 1697582046}
+  - component: {fileID: 1697582049}
   m_Layer: 0
   m_Name: Simulation
   m_TagString: Untagged
@@ -430,6 +430,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1cb85431a1aac5b44a73b606176a7c6f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BodyVisualizer
+  urpLitTemplate: {fileID: 2100000, guid: e092dfb57ae02cc46bf870831fe7e534, type: 2}
 --- !u!114 &1697582047
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -442,9 +443,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3419e8ba176ad5c4daf64ee62a530298, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimulationRunner
+  scenarioFile: 
   roomSize: 20
-  sphereCount: 10
-  boxCount: 5
+  sphereCount: 0
+  boxCount: 0
+  convexMeshCount: 35
+  modelsDir: Models
   minSphereRadius: 0.5
   maxSphereRadius: 1.5
   minBoxHalfExtent: 0.3
@@ -454,9 +458,11 @@ MonoBehaviour:
   gravity: -9.81
   restitution: 0.5
   friction: 0.4
-  solverIterations: 2
+  solverIterations: 1
   linearDamping: 0.999
   angularDamping: 0.98
+  useParallel: 1
+  threadCount: 0
 --- !u!4 &1697582048
 Transform:
   m_ObjectHideFlags: 0
@@ -472,6 +478,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1697582049
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1697582045}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf531257723306149865bbc3c79c7e2a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScenarioSelector
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

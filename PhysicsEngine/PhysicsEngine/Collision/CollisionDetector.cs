@@ -223,10 +223,8 @@ public static class CollisionDetector
     public static ContactPoint? Detect(RigidBody a, RigidBody b)
     {
         if (a.IsStatic && b.IsStatic) return null;
-        var aResting = a.IsSleeping || a.SleepFrames > 0;
-        var bResting = b.IsSleeping || b.SleepFrames > 0;
-        if (aResting && (b.IsStatic || bResting)) return null;
-        if (bResting && (a.IsStatic || aResting)) return null;
+        if (a.IsSleeping && (b.IsStatic || b.IsSleeping)) return null;
+        if (b.IsSleeping && (a.IsStatic || a.IsSleeping)) return null;
         return (a.Shape, b.Shape) switch
         {
             (SphereShape, SphereShape) => SphereSphere(a, b),

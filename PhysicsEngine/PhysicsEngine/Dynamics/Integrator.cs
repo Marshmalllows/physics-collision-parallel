@@ -11,7 +11,7 @@ public static class Integrator
 {
     public static void Integrate(RigidBody body, Vector3 gravity, float dt, float linearDamping, float angularDamping)
     {
-        if (body.IsStatic || body.IsSleeping || body.SleepFrames > 0)
+        if (body.IsStatic || body.IsSleeping)
             return;
 
         body.Velocity += gravity * dt;

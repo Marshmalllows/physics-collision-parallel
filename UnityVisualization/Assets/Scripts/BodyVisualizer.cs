@@ -4,6 +4,9 @@ using SysNumerics = System.Numerics;
 
 public class BodyVisualizer : MonoBehaviour
 {
+    [Tooltip("Assign any URP Lit material here (used as template for cloning)")]
+    public Material urpLitTemplate;
+
     SimulationRunner runner;
     GameObject[] visuals;
 
@@ -23,6 +26,44 @@ public class BodyVisualizer : MonoBehaviour
         new(0.3f, 0.8f, 0.3f),
     };
 
+    static Shader _sharedURPShader;
+
+    Material CreateURPMaterial(Color color, float metallic, float smoothness)
+    {
+        if (urpLitTemplate != null)
+        {
+            var mat = new Material(urpLitTemplate);
+            mat.SetColor("_BaseColor", color);
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Smoothness", smoothness);
+            return mat;
+        }
+
+        if (_sharedURPShader == null)
+        {
+            _sharedURPShader = Shader.Find("Universal Render Pipeline/Lit");
+            if (_sharedURPShader == null)
+                _sharedURPShader = Shader.Find("Universal Render Pipeline/Simple Lit");
+        }
+
+        if (_sharedURPShader != null)
+        {
+            var mat = new Material(_sharedURPShader);
+            mat.SetColor("_BaseColor", color);
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Smoothness", smoothness);
+            return mat;
+        }
+
+        Debug.LogWarning("URP Lit shader not found — materials will be pink");
+        return new Material(Shader.Find("Standard")) { color = color };
+    }
+
+    void ApplyMat(MeshRenderer renderer, Color color, float metallic, float smoothness)
+    {
+        renderer.material = CreateURPMaterial(color, metallic, smoothness);
+    }
+
     void Start()
     {
         runner = FindAnyObjectByType<SimulationRunner>();
@@ -35,7 +76,7 @@ public class BodyVisualizer : MonoBehaviour
         visuals = new GameObject[bodies.Count];
 
         var wallCount = 0;
-        for (int i = 0; i < bodies.Count; i++)
+        for (var i = 0; i < bodies.Count; i++)
         {
             if (bodies[i].IsStatic) wallCount++;
             else break;
@@ -44,13 +85,13 @@ public class BodyVisualizer : MonoBehaviour
         if (wallCount == 6)
         {
             var roomObj = BuildRoom(runner.roomSize);
-            for (int i = 0; i < 6; i++)
+            for (var i = 0; i < 6; i++)
                 visuals[i] = roomObj;
         }
 
         int sphereIdx = 0, boxIdx = 0;
 
-        for (int i = wallCount; i < bodies.Count; i++)
+        for (var i = wallCount; i < bodies.Count; i++)
         {
             var body = bodies[i];
             GameObject go;
@@ -85,21 +126,15 @@ public class BodyVisualizer : MonoBehaviour
             var renderer = go.GetComponent<MeshRenderer>();
             if (renderer != null)
             {
-                var mat = renderer.material;
                 if (body.Shape is SphereShape)
                 {
                     var c = sphereColors[sphereIdx++ % sphereColors.Length];
-                    mat.color = c;
-                    mat.SetFloat("_Metallic", 0.3f);
-                    mat.SetFloat("_Glossiness", 0.8f);
+                    ApplyMat(renderer, c, 0.3f, 0.8f);
                 }
                 else
                 {
                     var c = boxColors[boxIdx++ % boxColors.Length];
-                    mat.color = c;
-                    mat.SetFloat("_Metallic", 0.1f);
-                    mat.SetFloat("_Glossiness", 0.5f);
-                    mat.SetFloat("_Smoothness", 0.5f);
+                    ApplyMat(renderer, c, 0.1f, 0.5f);
                 }
             }
 
@@ -185,12 +220,21 @@ public class BodyVisualizer : MonoBehaviour
         fl.shadows = LightShadows.Soft;
         fl.shadowStrength = 0.3f;
 
+        // Disable skybox
+        RenderSettings.skybox = null;
+        var cam = Camera.main;
+        if (cam != null)
+        {
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.15f, 0.15f, 0.18f);
+        }
+
         // Ambient
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
         RenderSettings.ambientLight = new Color(0.5f, 0.5f, 0.55f);
     }
 
-    static GameObject BuildRoom(float size)
+    GameObject BuildRoom(float size)
     {
         var room = new GameObject("Room");
         var half = size / 2f;
@@ -221,7 +265,7 @@ public class BodyVisualizer : MonoBehaviour
             var flatNormals = new Vector3[srcVerts];
             var flatTris = new int[srcVerts];
 
-            for (int i = 0; i < meshShape.Triangles.Length; i += 3)
+            for (var i = 0; i < meshShape.Triangles.Length; i += 3)
             {
                 var a = new Vector3(verts[meshShape.Triangles[i]].X, verts[meshShape.Triangles[i]].Y, verts[meshShape.Triangles[i]].Z);
                 var b = new Vector3(verts[meshShape.Triangles[i + 1]].X, verts[meshShape.Triangles[i + 1]].Y, verts[meshShape.Triangles[i + 1]].Z);
@@ -251,7 +295,7 @@ public class BodyVisualizer : MonoBehaviour
         {
             var min = new Vector3(verts[0].X, verts[0].Y, verts[0].Z);
             var max = min;
-            for (int i = 1; i < verts.Length; i++)
+            for (var i = 1; i < verts.Length; i++)
             {
                 var v = new Vector3(verts[i].X, verts[i].Y, verts[i].Z);
                 min = Vector3.Min(min, v);
@@ -263,7 +307,7 @@ public class BodyVisualizer : MonoBehaviour
         return go;
     }
 
-    static void CreateWallQuad(Transform parent, string name, Vector3 pos, Quaternion rot, Vector2 size, Color color, bool receiveShadows)
+    void CreateWallQuad(Transform parent, string name, Vector3 pos, Quaternion rot, Vector2 size, Color color, bool receiveShadows)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
         go.name = name;
@@ -278,10 +322,7 @@ public class BodyVisualizer : MonoBehaviour
         var renderer = go.GetComponent<MeshRenderer>();
         if (renderer != null)
         {
-            var mat = renderer.material;
-            mat.color = color;
-            mat.SetFloat("_Metallic", 0f);
-            mat.SetFloat("_Glossiness", 0.15f);
+            ApplyMat(renderer, color, 0f, 0.15f);
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = receiveShadows;
         }
