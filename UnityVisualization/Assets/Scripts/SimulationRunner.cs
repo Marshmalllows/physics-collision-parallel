@@ -92,6 +92,7 @@ public class SimulationRunner : MonoBehaviour
     void LoadFromScenario(string fileName)
     {
         var path = System.IO.Path.Combine(Application.streamingAssetsPath, "Scenarios", fileName);
+        Debug.Log($"Loading scenario from: {path}");
         if (!System.IO.File.Exists(path))
         {
             Debug.LogError($"Scenario file not found: {path}");

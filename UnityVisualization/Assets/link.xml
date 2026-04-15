@@ -1,0 +1,4 @@
+<linker>
+  <assembly fullname="PhysicsEngine" preserve="all"/>
+  <assembly fullname="System.Text.Json" preserve="all"/>
+</linker>

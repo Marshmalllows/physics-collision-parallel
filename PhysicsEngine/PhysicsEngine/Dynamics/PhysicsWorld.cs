@@ -27,9 +27,9 @@ public class PhysicsWorld
     {
         Integrator.IntegrateAll(Bodies, Gravity, dt, LinearDamping, AngularDamping, strategy, threadCount);
 
-        HashSet<RigidBody> inContact = null;
+        HashSet<RigidBody> supported = null;
         if (SleepThreshold > 0)
-            inContact = [];
+            supported = [];
 
         for (var i = 0; i < SolverIterations; i++)
         {
@@ -52,10 +52,10 @@ public class PhysicsWorld
                     b.SleepFrames = 0;
                 }
 
-                if (inContact != null)
+                if (supported != null)
                 {
-                    inContact.Add(a);
-                    inContact.Add(b);
+                    if (b.IsStatic) supported.Add(a);
+                    if (a.IsStatic) supported.Add(b);
                 }
             }
         }
@@ -68,16 +68,10 @@ public class PhysicsWorld
             {
                 if (body.IsStatic || body.IsSleeping) continue;
 
-                var touching = inContact.Contains(body);
-
-                var linSmall = body.Velocity.LengthSquared() < linSleepSq;
-                var angSmall = body.AngularVelocity.LengthSquared() < angSleepSq;
-
-                if (linSmall) body.Velocity = Vector3.Zero;
-                if (angSmall) body.AngularVelocity = Vector3.Zero;
+                var isSupported = supported.Contains(body);
 
                 var energy = body.Velocity.LengthSquared() + body.AngularVelocity.LengthSquared();
-                if (energy < linSleepSq + angSleepSq && touching)
+                if (energy < linSleepSq + angSleepSq && isSupported)
                 {
                     body.Velocity = Vector3.Zero;
                     body.AngularVelocity = Vector3.Zero;

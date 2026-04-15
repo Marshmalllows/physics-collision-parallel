@@ -77,6 +77,8 @@ public class ScenarioSelector : MonoBehaviour
     void LoadScenarioList()
     {
         var scenariosDir = System.IO.Path.Combine(Application.streamingAssetsPath, "Scenarios");
+        Debug.Log($"StreamingAssets: {Application.streamingAssetsPath}");
+        Debug.Log($"ScenariosDir: {scenariosDir}, exists: {System.IO.Directory.Exists(scenariosDir)}");
         if (System.IO.Directory.Exists(scenariosDir))
         {
             var files = System.IO.Directory.GetFiles(scenariosDir, "*.json");
