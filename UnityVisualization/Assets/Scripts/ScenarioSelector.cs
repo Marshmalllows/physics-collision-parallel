@@ -23,6 +23,9 @@ public class ScenarioSelector : MonoBehaviour
     int selectedIndex;
     bool showDropdown;
     bool showPanel = true;
+    float fpsTimer;
+    int fpsCount;
+    string fpsText = "";
 
     string sRoomSize, sSpheres, sBoxes, sConvex;
     string sGravity, sRestitution, sFriction, sSolver;
@@ -117,9 +120,24 @@ public class ScenarioSelector : MonoBehaviour
         toggleStyle = new GUIStyle(GUI.skin.toggle) { fontSize = 12 };
     }
 
+    void Update()
+    {
+        fpsCount++;
+        fpsTimer += Time.unscaledDeltaTime;
+        if (fpsTimer >= 0.5f)
+        {
+            fpsText = $"FPS: {fpsCount / fpsTimer:F0}";
+            fpsCount = 0;
+            fpsTimer = 0f;
+        }
+    }
+
     void OnGUI()
     {
         InitStyles();
+
+        if (fpsText.Length > 0)
+            GUI.Label(new Rect(Screen.width - 90, 10, 80, 24), fpsText, headerStyle);
 
         var panelWidth = 240f;
         var x = 10f;
