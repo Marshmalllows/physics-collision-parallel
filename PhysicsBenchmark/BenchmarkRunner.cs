@@ -47,7 +47,7 @@ public static class BenchmarkRunner
         Console.WriteLine("Series 1: Body count scaling");
         Console.WriteLine($"Threads: {threadCount}");
 
-        int[] bodyCounts = [50, 100, 200, 400, 800];
+        int[] bodyCounts = [50, 100, 200, 400, 800, 1500, 2500];
         var rows = new List<CsvRow>();
 
         PrintHeader();
@@ -72,13 +72,13 @@ public static class BenchmarkRunner
     {
         PrintBenchmarkHeader();
         Console.WriteLine("Series 2: Thread count impact");
-        const int bodyCount = 400;
+        const int bodyCount = 1000;
         var world = MakeConvexWorld(bodyCount);
 
         var seqMs = Measure(world, bodyCount, ParallelStrategy.Sequential, 1);
         Console.WriteLine($"Sequential baseline ({bodyCount} bodies): {seqMs:F2} ms");
 
-        int[] threadCounts = [2, 4, 8, 16];
+        int[] threadCounts = [2, 4, 6, 8, 12, 16];
         var rows = new List<CsvRow>();
 
         PrintHeader("Threads");
@@ -101,7 +101,7 @@ public static class BenchmarkRunner
     {
         PrintBenchmarkHeader();
         Console.WriteLine("Series 3: Strategy comparison");
-        const int bodyCount = 400;
+        const int bodyCount = 1000;
         var threadCount = Environment.ProcessorCount;
         var world = MakeConvexWorld(bodyCount);
 
@@ -145,11 +145,11 @@ public static class BenchmarkRunner
 
         AddWalls(world, boxHalf);
 
-        for (int i = 0; i < bodyCount; i++)
+        for (var i = 0; i < bodyCount; i++)
         {
             var scale = 0.3f + (float)rng.NextDouble() * 0.5f;
             var verts = new Vector3[TetraVerts.Length];
-            for (int v = 0; v < TetraVerts.Length; v++)
+            for (var v = 0; v < TetraVerts.Length; v++)
                 verts[v] = TetraVerts[v] * scale;
 
             var margin = scale;
@@ -202,7 +202,7 @@ public static class BenchmarkRunner
         }
 
         double sum = 0;
-        for (int i = WarmupRuns; i < TotalRuns; i++)
+        for (var i = WarmupRuns; i < TotalRuns; i++)
             sum += times[i];
         return sum / MeasuredRuns;
     }
@@ -215,7 +215,7 @@ public static class BenchmarkRunner
     private static void PrintHeader(string paramName = "Bodies")
     {
         Console.WriteLine($"{paramName,-10} {"Seq (ms)",14} {"Par (ms)",14} {"Speedup",10}");
-        Console.WriteLine(new string('-', 50));
+        Console.WriteLine(new string('-', 51));
     }
 
     private static void PrintRow(int param, double seqMs, double parMs, double speedup)
