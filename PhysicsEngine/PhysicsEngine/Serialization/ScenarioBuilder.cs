@@ -7,7 +7,7 @@ namespace PhysicsEngine.Serialization;
 
 public static class ScenarioBuilder
 {
-    public static PhysicsWorld BuildWorld(ScenarioConfig config)
+    public static PhysicsWorld BuildWorld(ScenarioConfig config, string baseDir = null)
     {
         var world = new PhysicsWorld
         {
@@ -26,7 +26,7 @@ public static class ScenarioBuilder
             {
                 ShapeType.Sphere => new SphereShape(bc.Radius),
                 ShapeType.Box => new BoxShape(bc.HalfExtents),
-                ShapeType.ConvexMesh when bc.MeshFile != null => BuildConvexMesh(bc.MeshFile),
+                ShapeType.ConvexMesh when bc.MeshFile != null => BuildConvexMesh(bc.MeshFile, baseDir),
                 _ => throw new ArgumentException($"Unknown shape type: {bc.ShapeType}")
             };
 
@@ -43,8 +43,10 @@ public static class ScenarioBuilder
         return world;
     }
 
-    private static ConvexMeshShape BuildConvexMesh(string meshFile)
+    private static ConvexMeshShape BuildConvexMesh(string meshFile, string baseDir)
     {
+        if (baseDir != null && !System.IO.Path.IsPathRooted(meshFile))
+            meshFile = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, meshFile));
         var (verts, tris) = ObjLoader.LoadWithFaces(meshFile);
         return new ConvexMeshShape(verts, tris.Length > 0 ? tris : null);
     }

@@ -27,13 +27,12 @@ public class PhysicsWorld
     {
         Integrator.IntegrateAll(Bodies, Gravity, dt, LinearDamping, AngularDamping, strategy, threadCount);
 
-        HashSet<RigidBody> supported = null;
-        if (SleepThreshold > 0)
-            supported = [];
+        List<CollisionPair> lastPairs = null;
 
         for (var i = 0; i < SolverIterations; i++)
         {
             var pairs = CollisionDetector.DetectAll(Bodies, strategy, threadCount);
+            lastPairs = pairs;
             var iterRestitution = i == 0 ? Restitution : 0f;
             CollisionResolver.ResolveAll(pairs, iterRestitution, Friction);
 
@@ -51,27 +50,42 @@ public class PhysicsWorld
                     b.IsSleeping = false;
                     b.SleepFrames = 0;
                 }
-
-                if (supported != null)
-                {
-                    if (b.IsStatic) supported.Add(a);
-                    if (a.IsStatic) supported.Add(b);
-                }
             }
         }
 
         if (SleepThreshold > 0)
         {
+            var supported = new HashSet<RigidBody>();
+            if (lastPairs != null)
+            {
+                foreach (var pair in lastPairs)
+                {
+                    if (pair.BodyB.IsStatic) supported.Add(pair.BodyA);
+                    if (pair.BodyA.IsStatic) supported.Add(pair.BodyB);
+                }
+
+                var changed = true;
+                while (changed)
+                {
+                    changed = false;
+                    foreach (var pair in lastPairs)
+                    {
+                        if (supported.Contains(pair.BodyB) && !pair.BodyA.IsStatic && supported.Add(pair.BodyA))
+                            changed = true;
+                        if (supported.Contains(pair.BodyA) && !pair.BodyB.IsStatic && supported.Add(pair.BodyB))
+                            changed = true;
+                    }
+                }
+            }
+
             var linSleepSq = SleepThreshold * SleepThreshold;
             var angSleepSq = AngularSleepThreshold * AngularSleepThreshold;
             foreach (var body in Bodies)
             {
                 if (body.IsStatic || body.IsSleeping) continue;
 
-                var isSupported = supported.Contains(body);
-
                 var energy = body.Velocity.LengthSquared() + body.AngularVelocity.LengthSquared();
-                if (energy < linSleepSq + angSleepSq && isSupported)
+                if (energy < linSleepSq + angSleepSq && supported.Contains(body))
                 {
                     body.Velocity = Vector3.Zero;
                     body.AngularVelocity = Vector3.Zero;

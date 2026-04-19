@@ -101,7 +101,7 @@ public class SimulationRunner : MonoBehaviour
 
         var config = ScenarioSerializer.LoadFromJson(path);
         roomSize = config.BoxHalfSize.X * 2f;
-        World = ScenarioBuilder.BuildWorld(config);
+        World = ScenarioBuilder.BuildWorld(config, System.IO.Path.GetDirectoryName(path));
     }
 
     void FixedUpdate()
